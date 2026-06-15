@@ -1,55 +1,9 @@
 ---
-title: "Metal &Enchanting Based Money Supply"
+title: "Metal & Enchanting Based Money Supply"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
-
-```{r Enchanted Coin Production One-off}
-set.seed(5)
-##**Mining Gold***##
-#Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
-
-#Miners produce 1 unit of gold per week
-#There are L miners total with L_g miners mining gold
-L <- 100
-L_g <- floor(1/3 * L)
-
-#Gold Produced in a week
-G <- 1*L_g
-#Miners paid 1 enchanted gold coin per week
-w <- 1
-#cost of Mining Gold
-c_l <- w*L_g
-##**Minting Gold**##
-#Assume e is percent of unit of gold lost in minting
-
-e <- runif(1, 0, 0.0002)
-#For every unit of gold, x coins can be minted (with spillage accounted for)
-x <- 10
-M <- floor(x*G*(1-e))
-#Cost of minting
-c_m <- 10
-##**Enchanting Gold**##
-#*Country Y is sent M coins to enchant which they do with 100% success rate
-a <- 1
-E <- a*M
-##**Returning Gold*##
-#Country Y keeps y% of the coins as payment and as they are the only ones capable of this service.
-y <- 0.1
-R <- floor(E*y)
-Q <- E - R
-
-#Repaying the cost to create this we have the following cost 
-C <- c_l + c_m
-#Finally the actual Money Supply is multiplied by value of the ore. We set Gold as 1
-S <- (Q - C) * 1
-S
-```
-
-```{r}
+```{r Gold, Silver,and Copper Money Supply one-off}
 ##**Coin Production***##
 #Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
 
@@ -131,7 +85,6 @@ ccost <- claborcost + smintcost
 moneysupply <- (gsupply * 1 - gcost) +  (ssupply * 0.1 - scost) + (csupply * 0.001 - ccost)
 moneysupply
 ```
-
 ```{r Repeated Simulation of Gold Production}
 ##**Mining Gold***##
 #Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
@@ -172,9 +125,3 @@ C <- c_l + c_m
 S <- Q - C
 S
 ```
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
