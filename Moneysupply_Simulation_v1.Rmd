@@ -1,0 +1,180 @@
+---
+title: "Metal &Enchanting Based Money Supply"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r Enchanted Coin Production One-off}
+set.seed(5)
+##**Mining Gold***##
+#Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
+
+#Miners produce 1 unit of gold per week
+#There are L miners total with L_g miners mining gold
+L <- 100
+L_g <- floor(1/3 * L)
+
+#Gold Produced in a week
+G <- 1*L_g
+#Miners paid 1 enchanted gold coin per week
+w <- 1
+#cost of Mining Gold
+c_l <- w*L_g
+##**Minting Gold**##
+#Assume e is percent of unit of gold lost in minting
+
+e <- runif(1, 0, 0.0002)
+#For every unit of gold, x coins can be minted (with spillage accounted for)
+x <- 10
+M <- floor(x*G*(1-e))
+#Cost of minting
+c_m <- 10
+##**Enchanting Gold**##
+#*Country Y is sent M coins to enchant which they do with 100% success rate
+a <- 1
+E <- a*M
+##**Returning Gold*##
+#Country Y keeps y% of the coins as payment and as they are the only ones capable of this service.
+y <- 0.1
+R <- floor(E*y)
+Q <- E - R
+
+#Repaying the cost to create this we have the following cost 
+C <- c_l + c_m
+#Finally the actual Money Supply is multiplied by value of the ore. We set Gold as 1
+S <- (Q - C) * 1
+S
+```
+
+```{r}
+##**Coin Production***##
+#Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
+
+#Miners produce 1 unit of gold per week
+#There are L miners total with L_g miners mining gold
+L <- 100
+L_g <- floor(1/3 * L)
+L_s <- floor(1/3 * L)
+L_c <- floor(1/3 * L)
+#Gold Produced in a week
+g <- 1 * L_g
+s <- 1 * L_s
+c <- 1 * L_c
+#Miners paid 1 enchanted gold coin per week
+wage_g <- 1
+wage_s <- 1
+wage_c <- 1
+#cost of Mining Gold
+glaborcost <- wage_g * L_g
+slaborcost <- wage_s * L_s
+claborcost <- wage_c * L_c
+##**Minting Gold**##
+#Assume e is percent of unit of gold lost in minting
+
+e <- runif(1, 0, 0.0002)
+#For every unit of gold, x coins can be minted (with spillage accounted for)
+x_g <- 10
+x_s <- 10
+x_c <- 10
+M_g <- floor(x_g * g * (1-e))
+M_s <- floor(x_s * s * (1-e))
+M_c <- floor(x_c * c * (1-e))
+
+#Cost of minting
+gmintcost <- 10
+smintcost <- 10
+cmintcost <- 10
+
+#Spillage and loss accounting
+## When implementing repeat simulations, keep stock of difference in M_g with and without floor() to accumulate so less loss
+
+spill_g <- x_g * g - M_g
+spill_s <- x_s * s - M_s
+spill_c <- x_c * c - M_c
+
+loss_g <- spill_g * 1
+loss_s <- spill_s * 0.1
+loss_c <- spill_c * 0.01
+
+
+##**Enchanting Gold**##
+#*Country Y is sent M coins to enchant which they do with a*100% success rate
+a_g <- 1
+a_c <- 1
+a_s <- 1
+
+g_enchant <- a_g * M_g
+s_enchant <- a_s * M_s
+c_enchant <- a_c * M_c
+##**Returning Gold*##
+#Country Y keeps y% of the coins enchanted as payment since they are the only ones capable of this service.
+y_g <- 0.1
+y_s <- 0.1
+y_c <- 0.1
+
+greserve <- y_g * g_enchant
+sreserve <- y_s * s_enchant
+creserve <- y_c * c_enchant
+
+gsupply <- g_enchant - greserve
+ssupply <- s_enchant - sreserve
+csupply <- c_enchant - creserve
+
+#Repaying the cost to create this we have the following cost 
+gcost <- glaborcost + gmintcost
+scost <- slaborcost + smintcost
+ccost <- claborcost + smintcost
+#Finally the actual value of generated Money Supply in terms of gold
+moneysupply <- (gsupply * 1 - gcost) +  (ssupply * 0.1 - scost) + (csupply * 0.001 - ccost)
+moneysupply
+```
+
+```{r Repeated Simulation of Gold Production}
+##**Mining Gold***##
+#Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
+
+#Miners produce 1 unit of gold per week
+#There are L miners total with L_g miners mining gold
+L <- 100
+L_c <- floor(1/3 * L)
+
+#Gold Produced in a week
+G <- 1*L
+#Miners paid 1 enchanted gold coin per week
+w <- 1
+#cost of Mining Gold
+c_l <- w*L_g
+##**Minting Gold**##
+#Assume e is percent of unit of gold lost in minting
+
+e <- runif(1, 0, 0.0002)
+#For every unit of gold, x coins can be minted (with spillage accounted for)
+x <- 10
+M <- floor(x*G*(1-e))
+#Cost of minting
+c_m <- 10
+##**Enchanting Gold**##
+#*Country Y is sent M coins to enchant which they do with 100% success rate
+a <- 1
+E <- a*M
+##**Returning Gold*##
+#Country Y keeps y% of the coins as payment and as they are the only ones capable of this service.
+y <- 0.1
+R <- floor(E*y)
+Q <- E - R
+
+#Repaying the cost to create this we have the following cost 
+C <- c_l + c_m
+#Finally the actual Money Supply is
+S <- Q - C
+S
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
