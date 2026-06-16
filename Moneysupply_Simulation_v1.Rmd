@@ -1,14 +1,14 @@
 ---
-title: "Metal & Enchanting Based Money Supply"
+title: "Metal & Enchanting-Based Money Supply"
 output: html_notebook
 ---
 
-```{r Gold, Silver,and Copper Money Supply one-off}
+```{r Gold, Silver, and Copper Money Supply one-off}
 ##**Coin Production***##
-#Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
+#Assuming all gold is produced in Country X, all gold is of the same grade, and miners are paid a set wage.
 
 #Miners produce 1 unit of gold per week
-#There are L miners total with L_g miners mining gold
+#There are L miners total, with L_i miners mining ore i where i is in the set {g,s,c}
 L <- 100
 L_g <- floor(1/3 * L)
 L_s <- floor(1/3 * L)
@@ -26,10 +26,10 @@ glaborcost <- wage_g * L_g
 slaborcost <- wage_s * L_s
 claborcost <- wage_c * L_c
 ##**Minting Gold**##
-#Assume e is percent of unit of gold lost in minting
+#Assume e is the percent of a unit of gold lost in minting
 
 e <- runif(1, 0, 0.0002)
-#For every unit of gold, x coins can be minted (with spillage accounted for)
+#For every unit of gold, silver, or copper, x coins can be minted (with spillage accounted for)
 x_g <- 10
 x_s <- 10
 x_c <- 10
@@ -55,7 +55,7 @@ loss_c <- spill_c * 0.01
 
 
 ##**Enchanting Gold**##
-#*Country Y is sent M coins to enchant which they do with a*100% success rate
+#*Country Y is sent M coins to enchant, which they do with a success rate of a
 a_g <- 1
 a_c <- 1
 a_s <- 1
@@ -77,20 +77,20 @@ gsupply <- g_enchant - greserve
 ssupply <- s_enchant - sreserve
 csupply <- c_enchant - creserve
 
-#Repaying the cost to create this we have the following cost 
+#Repaying the cost to create this, we have the following cost 
 gcost <- glaborcost + gmintcost
 scost <- slaborcost + smintcost
 ccost <- claborcost + smintcost
-#Finally the actual value of generated Money Supply in terms of gold
+#Finally, the actual value of the generated Money Supply in terms of gold
 moneysupply <- (gsupply * 1 - gcost) +  (ssupply * 0.1 - scost) + (csupply * 0.001 - ccost)
 moneysupply
 ```
 ```{r Repeated Simulation of Gold Production}
 ##**Mining Gold***##
-#Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
+#Assuming all gold is produced in Country X, all gold is of the same grade, and miners are paid a set wage.
 
 #Miners produce 1 unit of gold per week
-#There are L miners total with L_g miners mining gold
+#There are L miners total, with L_g miners mining gold
 L <- 100
 L_c <- floor(1/3 * L)
 
@@ -101,7 +101,7 @@ w <- 1
 #cost of Mining Gold
 c_l <- w*L_g
 ##**Minting Gold**##
-#Assume e is percent of unit of gold lost in minting
+#Assume e is the percent of a unit of gold lost in minting
 
 e <- runif(1, 0, 0.0002)
 #For every unit of gold, x coins can be minted (with spillage accounted for)
@@ -110,18 +110,18 @@ M <- floor(x*G*(1-e))
 #Cost of minting
 c_m <- 10
 ##**Enchanting Gold**##
-#*Country Y is sent M coins to enchant which they do with 100% success rate
+#*Country Y is sent M coins to enchant, which they do with 100% success rate
 a <- 1
 E <- a*M
 ##**Returning Gold*##
-#Country Y keeps y% of the coins as payment and as they are the only ones capable of this service.
+#Country Y keeps y% of the coins as payment, and as they are the only ones capable of this service.
 y <- 0.1
 R <- floor(E*y)
 Q <- E - R
 
-#Repaying the cost to create this we have the following cost 
+#Repaying the cost to create this, we have the following cost 
 C <- c_l + c_m
-#Finally the actual Money Supply is
+#Finally, the actual Money Supply is
 S <- Q - C
 S
 ```
