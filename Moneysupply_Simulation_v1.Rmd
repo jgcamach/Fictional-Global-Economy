@@ -85,20 +85,6 @@ ccost <- claborcost + smintcost
 moneysupply <- (gsupply * 1 - gcost) +  (ssupply * 0.1 - scost) + (csupply * 0.001 - ccost)
 moneysupply
 ```
-```{r Run Mining Simulation}
-set.seed(1234)
-
-workers <- 100000
-T <- 100
-t <- 5
-results <- simulate_workers(
-    workers,
-    T,
-    t
-  )
-
-```
-
 ```{r Mining Simulation Set up}
 
 run_worker <- function(T, t, start_x = 20, min_draw = 1, max_draw = 20) {
@@ -153,11 +139,32 @@ simulate_workers <- function(n_workers, T, t, start_x = 20, min_draw = 1, max_dr
 }
 
 
-
 run_worker(T, t)
 
 
 ```
+
+```{r Run Mining Simulation}
+set.seed(1234)
+
+workers <- 100000
+T <- 100
+t <- 5
+results <- simulate_workers(
+    workers,
+    T,
+    t
+  )
+
+#using the number of successful mining attempts, a d4 is used to determine how many ounces of ore is collected.
+successes <- sum(results$successes)
+successes
+sum(runif(successes, 1, 4))
+
+#0.1125 troy ounces in a coin
+```
+
+
 
 ```{r Repeated Simulation of Gold Production}
 ##**Mining Gold***##
