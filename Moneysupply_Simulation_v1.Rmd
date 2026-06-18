@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 ```{r Gold, Silver,and Copper Money Supply one-off}
-##**Coin Production***##
+##**Mining***##
 #Assuming all gold is produced in Country X, all gold is of same grade, and miners are paid a set wage.
 
 #Miners produce 1 unit of gold per week
@@ -25,7 +25,8 @@ wage_c <- 1
 glaborcost <- wage_g * L_g
 slaborcost <- wage_s * L_s
 claborcost <- wage_c * L_c
-##**Minting Gold**##
+
+##**Minting**##
 #Assume e is percent of unit of gold lost in minting
 
 e <- runif(1, 0, 0.0002)
@@ -85,6 +86,7 @@ ccost <- claborcost + smintcost
 moneysupply <- (gsupply * 1 - gcost) +  (ssupply * 0.1 - scost) + (csupply * 0.001 - ccost)
 moneysupply
 ```
+
 ```{r Mining Simulation Set up}
 
 run_worker <- function(T, t, start_x = 20, min_draw = 1, max_draw = 20) {
@@ -163,8 +165,6 @@ sum(runif(successes, 1, 4))
 
 #0.1125 troy ounces in a coin
 ```
-
-
 
 ```{r Repeated Simulation of Gold Production}
 ##**Mining Gold***##
