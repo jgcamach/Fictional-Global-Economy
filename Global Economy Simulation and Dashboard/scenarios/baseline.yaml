@@ -1,0 +1,53 @@
+scenario_name: baseline
+T: 100
+L: 100
+
+labor_allocation:
+  method: equal_split
+  sectors:
+    gold_ore: 0.333
+    silver_ore: 0.333
+    copper_ore: 0.333
+
+ores:
+  gold_ore: {}
+  silver_ore: {}
+  copper_ore: {}
+
+mining_worker:
+  T: 100
+  t: 5
+  start_x: 20
+  task_min: 1
+  task_max: 20
+  output_min: 1
+  output_max: 4
+
+money_supply:
+  mint_loss_min: 0
+  mint_loss_max: 0.0002
+  coins:
+    gold_ore:
+      coin_type: enchanted_gold_coin
+      coins_per_ore: 10
+      weekly_wage: 1
+      mint_cost: 10
+      enchant_success_rate: 1
+      reserve_share: 0.1
+      value_weight: 1
+    silver_ore:
+      coin_type: enchanted_silver_coin
+      coins_per_ore: 10
+      weekly_wage: 1
+      mint_cost: 10
+      enchant_success_rate: 1
+      reserve_share: 0.1
+      value_weight: 0.1
+    copper_ore:
+      coin_type: enchanted_copper_coin
+      coins_per_ore: 10
+      weekly_wage: 1
+      mint_cost: 10
+      enchant_success_rate: 1
+      reserve_share: 0.1
+      value_weight: 0.001

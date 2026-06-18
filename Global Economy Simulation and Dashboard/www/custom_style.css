@@ -1,0 +1,13 @@
+body {
+  background: #f7f8f5;
+}
+
+.well {
+  border-radius: 8px;
+}
+
+.small-note {
+  color: #5d675f;
+  font-size: 0.88rem;
+}
+
