@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Interactive Realistic Map Grid Editor — Multi-Select</title>
+<style>
+  :root {
+    --bg:#0f141a; --panel:#18202a; --panel2:#222d39; --text:#eef2f5;
+    --muted:#aeb8c2; --accent:#8fd3ff; --border:#3a4350; --danger:#ff7777; --ok:#8df0a5; --warn:#ffd369;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow:hidden; }
+  header { height:46px; display:flex; align-items:center; gap:14px; padding:0 14px; background:#0c1014; border-bottom:1px solid var(--border); white-space:nowrap; }
+  header h1 { font-size:15px; margin:0; font-weight:650; }
+  header .meta { color:var(--muted); font-size:12px; }
+  main { display:grid; grid-template-columns:1fr 405px; height:calc(100vh - 46px); }
+  #stageWrap { position:relative; overflow:hidden; background:#121920; }
+  canvas { display:block; width:100%; height:100%; cursor:crosshair; }
+  aside { border-left:1px solid var(--border); background:var(--panel); overflow-y:auto; padding:12px; }
+  .toolbar { position:absolute; top:10px; left:10px; display:flex; flex-wrap:wrap; gap:6px; background:rgba(10,12,16,.82); border:1px solid rgba(255,255,255,.16); padding:8px; border-radius:8px; backdrop-filter:blur(4px); max-width:calc(100% - 20px); }
+  button, input, select, textarea { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:7px 8px; font:inherit; font-size:12px; }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:#173449; border-color:#2c80b7; }
+  button.danger { background:#3a1e22; border-color:#94404a; }
+  button.active { background:#28445b; border-color:#8fd3ff; }
+  label { font-size:12px; color:var(--muted); display:block; margin:9px 0 4px; }
+  input, select, textarea { width:100%; }
+  textarea { min-height:82px; resize:vertical; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .section { border:1px solid var(--border); background:rgba(255,255,255,.025); border-radius:9px; padding:10px; margin-bottom:10px; }
+  .section h2 { font-size:13px; margin:0 0 8px; }
+  .small { font-size:12px; color:var(--muted); line-height:1.35; }
+  .kv { display:grid; grid-template-columns:160px 1fr; gap:4px 8px; font-size:12px; }
+  .kv div:nth-child(odd) { color:var(--muted); }
+  .pill { display:inline-block; padding:2px 7px; border-radius:999px; border:1px solid var(--border); background:var(--panel2); font-size:12px; }
+  #status { color:var(--ok); font-size:12px; margin-top:6px; min-height:16px; }
+  #assetStatus { color:var(--warn); font-size:12px; line-height:1.35; }
+  #hiddenFileInput, #hiddenCsvInput { display:none; }
+  .checkline { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-top:8px; }
+  .checkline input { width:auto; }
+  .legendBox { position:absolute; right:10px; bottom:10px; background:rgba(10,12,16,.84); border:1px solid rgba(255,255,255,.15); padding:8px 10px; border-radius:8px; font-size:12px; color:var(--text); max-width:320px; }
+  .legendRow { display:flex; align-items:center; gap:8px; margin-top:4px; }
+  .swatch { width:14px; height:14px; border-radius:2px; border:1px solid rgba(255,255,255,.25); display:inline-block; }
+  .hotkeys { color:var(--muted); font-size:11px; margin-top:5px; line-height:1.35; }
+  .territoryList { max-height:150px; overflow:auto; border:1px solid var(--border); border-radius:6px; margin-top:8px; }
+  .territoryItem { padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.08); font-size:12px; cursor:pointer; }
+  .territoryItem:last-child { border-bottom:0; }
+  .territoryItem:hover, .territoryItem.active { background:rgba(143,211,255,.12); }
+  .territoryMeta { color:var(--muted); font-size:11px; margin-top:2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Interactive Realistic Map Grid Editor</h1>
+  <span class="meta">Simple climate visual · no visible grid lines · multi-select invisible 5 px grid</span>
+</header>
+<main>
+  <div id="stageWrap">
+    <canvas id="mapCanvas"></canvas>
+    <div class="toolbar">
+      <button id="zoomIn">Zoom +</button>
+      <button id="zoomOut">Zoom −</button>
+      <button id="resetView">Reset view</button>
+      <button id="zoomSelected">Center selected</button>
+      <button id="modeSelect" class="active">Brush: select</button>
+      <button id="modeDeselect">Brush: deselect</button>
+      <button id="marqueeMode">Marquee: off</button>
+      <button id="clearSelection">Clear selection</button>
+      <button id="toggleEdited">Edited cells: on</button>
+      <button id="toggleLabels">Selection label: on</button>
+      <button id="toggleCrosshair">Crosshair: off</button>
+    </div>
+    <div class="legendBox">
+      <div><strong>Visual basis:</strong> simplified climate overlay, no grid lines.</div>
+      <div class="legendRow"><span class="swatch" style="background:rgba(67,223,255,.75);"></span> grid block under mouse</div>
+      <div class="legendRow"><span class="swatch" style="background:rgba(255,213,79,.75);"></span> active selected block</div>
+      <div class="legendRow"><span class="swatch" style="background:rgba(255,213,79,.32);"></span> multi-selected blocks</div>
+      <div class="legendRow"><span class="swatch" style="background:rgba(113,255,177,.32);"></span> active territory</div>
+      <div class="legendRow"><span class="swatch" style="background:rgba(255,70,210,.58);"></span> edited grid blocks</div>
+      <div class="hotkeys">Drag to brush-paint cells, or turn marquee on to drag-select a rectangle. Shift+drag pans. Mouse wheel zooms. Ctrl/Cmd+S saves.</div>
+    </div>
+  </div>
+  <aside>
+    <div class="section">
+      <h2>Asset loading</h2>
+      <div id="assetStatus">Loading map image and grid CSV...</div>
+      <div class="small" style="margin-top:6px;">This HTML expects the PNG and CSV in the same folder. If your browser blocks local CSV loading, use “Load grid CSV manually.”</div>
+      <button id="manualCsv" style="margin-top:8px; width:100%;">Load grid CSV manually</button>
+      <input id="hiddenCsvInput" type="file" accept=".csv,text/csv" />
+    </div>
+
+    <div class="section">
+      <h2>Selected grid cell</h2>
+      <div class="kv" id="selectedInfo"></div>
+      <div class="row2" style="margin-top:8px;">
+        <div><label>Go to row</label><input id="gotoRow" type="number" min="1" max="205" /></div>
+        <div><label>Go to col</label><input id="gotoCol" type="number" min="1" max="307" /></div>
+      </div>
+      <button id="gotoBtn" style="margin-top:8px; width:100%;">Select row/col</button>
+      <label class="checkline"><input id="autoZoomSelect" type="checkbox" checked /> Auto-center and zoom on selection</label>
+    </div>
+
+    <div class="section">
+      <h2>Multi-selection</h2>
+      <div class="kv" id="multiSelectInfo"></div>
+      <div class="row2" style="margin-top:8px;">
+        <button id="selectRect">Add rectangular range</button>
+        <button id="deselectRect">Remove rectangular range</button>
+      </div>
+      <div class="small" style="margin-top:8px;">
+        Brush drag adds or removes individual grid blocks. Marquee drag adds every grid block inside the dragged rectangle.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Territories</h2>
+      <div class="kv" id="territoryInfo"></div>
+      <label>Active territory</label>
+      <select id="territorySelect"></select>
+      <div class="row2">
+        <div><label>Name</label><input id="territoryName" placeholder="Aurelian Kingdom, North Coast, Old Town..." /></div>
+        <div><label>Type / level</label><input id="territoryLevel" list="territoryLevelOptions" placeholder="continent, kingdom, province, village..." /></div>
+      </div>
+      <datalist id="territoryLevelOptions">
+        <option value="continent"></option><option value="country"></option><option value="kingdom"></option>
+        <option value="empire"></option><option value="province"></option><option value="city-state"></option>
+        <option value="city"></option><option value="village"></option><option value="region"></option>
+      </datalist>
+      <label>Parent territory</label>
+      <select id="territoryParent"></select>
+      <label>Territory notes</label>
+      <textarea id="territoryNotes" placeholder="Government, claims, disputed borders, administrative role..."></textarea>
+      <div class="row2" style="margin-top:8px;">
+        <button class="primary" id="createTerritory">Create from selection</button>
+        <button id="updateTerritory">Update active</button>
+      </div>
+      <div class="row2" style="margin-top:8px;">
+        <button id="selectTerritoryCells">Select territory cells</button>
+        <button class="danger" id="deleteTerritory">Delete territory</button>
+      </div>
+      <div class="row2" style="margin-top:8px;">
+        <button id="exportTerritoriesJSON">Export territories JSON</button>
+        <button id="exportTerritoriesCSV">Export territories CSV</button>
+      </div>
+      <div class="territoryList" id="territoryList"></div>
+    </div>
+
+    <div class="section">
+      <h2>Map-derived readings for active cell</h2>
+      <div class="kv" id="climateInfo"></div>
+    </div>
+
+    <div class="section">
+      <h2>User attribution</h2>
+      <div class="row2">
+        <div>
+          <label>Terrain class</label>
+          <select id="terrain_class">
+            <option value="">Unassigned</option>
+            <option>forest</option><option>grassland</option><option>farmland</option><option>jungle</option>
+            <option>desert</option><option>steppe</option><option>mountain</option><option>hills</option>
+            <option>snowfield</option><option>glacier</option><option>wetland</option><option>coast</option>
+            <option>island</option><option>settlement</option><option>other</option>
+          </select>
+        </div>
+        <div><label>Fertility rating</label><input id="fertility_rating" type="number" min="0" max="100" step="1" placeholder="0–100" /></div>
+      </div>
+      <div class="row2">
+        <div><label>Water access</label><input id="water_access" type="number" min="0" max="100" step="1" placeholder="0–100" /></div>
+        <div><label>Habitability</label><input id="habitability" type="number" min="0" max="100" step="1" placeholder="0–100" /></div>
+      </div>
+      <div class="row3">
+        <div><label>Ore type</label><input id="ore_type" placeholder="iron, gold, copper..." /></div>
+        <div><label>Ore grade</label><input id="ore_grade" placeholder="%, g/t, etc." /></div>
+        <div><label>Deposit size</label><input id="deposit_size" placeholder="small/med/large" /></div>
+      </div>
+      <label>Settlement / political owner</label><input id="owner_region" placeholder="kingdom, province, city, clan..." />
+      <label>Notes</label><textarea id="notes" placeholder="Any cell-specific information"></textarea>
+      <label>Custom fields JSON</label><textarea id="custom_json" placeholder='{"magic_ore": "low", "road_access": 30}'></textarea>
+      <div class="row2" style="margin-top:8px;">
+        <button class="primary" id="saveCell">Save active cell</button>
+        <button id="clearCell">Clear active cell</button>
+      </div>
+      <div class="row2" style="margin-top:8px;">
+        <button class="primary" id="saveSelectedCells">Apply form to selected cells</button>
+        <button id="clearSelectedCells">Clear selected cells</button>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <div class="section">
+      <h2>Data management</h2>
+      <div class="small">Edits are stored in browser localStorage. Export regularly if the data matters.</div>
+      <div class="row2" style="margin-top:8px;">
+        <button id="exportJSON">Export annotations JSON</button>
+        <button id="exportCSV">Export annotations CSV</button>
+      </div>
+      <button id="exportMerged" style="margin-top:8px; width:100%;">Export full grid + annotations CSV</button>
+      <div class="row2" style="margin-top:8px;">
+        <button id="importJSON">Import annotations JSON</button>
+        <button class="danger" id="clearAll">Clear all edits</button>
+      </div>
+      <input id="hiddenFileInput" type="file" accept="application/json,.json" />
+      <div class="small" id="editCount" style="margin-top:8px;"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const IMAGE_FILE = "realistic_map_simple_overlay_no_grid.png";
+const CSV_FILE = "realistic_map_grid_with_color_levels_5px.csv";
+const IMG_W = 1535, IMG_H = 1024, CELL_SIZE = 5, NCOLS = 307, NROWS = 205;
+const PLANET_RADIUS_MILES = 4000, LAT_STEP_RADIANS = Math.PI / NROWS;
+const CELL_HEIGHT_MILES = 121.30246646221;
+const STORAGE_KEY = "interactive_realistic_map_annotations_multi_select_v1";
+const TERRITORY_STORAGE_KEY = "interactive_realistic_map_territories_v1";
+
+const canvas = document.getElementById("mapCanvas");
+const ctx = canvas.getContext("2d");
+const stageWrap = document.getElementById("stageWrap");
+const img = new Image();
+img.src = IMAGE_FILE;
+
+let gridRows = [], cellMap = new Map(), selected = null, hoverCell = null;
+let scale = 1, offsetX = 0, offsetY = 0, dragging = false, selectingDrag = false, lastMouse = null;
+let showEdited = true, showLabels = true, showCrosshair = false;
+let brushMode = "select"; // select, deselect
+let selectionTool = "brush"; // brush, marquee
+let selectedCells = new Set();
+let dragTouched = new Set();
+let marqueeStart = null, marqueeCurrent = null, suppressNextClick = false;
+let annotations = loadAnnotations();
+let territories = loadTerritories();
+let activeTerritoryId = "";
+let imageLoaded = false, csvLoaded = false;
+
+function setAssetStatus(msg, ok=false) {
+  const el = document.getElementById("assetStatus");
+  el.style.color = ok ? "var(--ok)" : "var(--warn)";
+  el.innerHTML = msg;
+}
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.replace(/^\uFEFF/, "").trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const vals = parseCSVLine(lines[i]);
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = vals[idx] ?? "");
+    rows.push(obj);
+  }
+  return rows;
+}
+function parseCSVLine(line) {
+  const vals = []; let cur = ""; let inQ = false;
+  for (let j = 0; j < line.length; j++) {
+    const ch = line[j];
+    if (inQ) {
+      if (ch === '"' && line[j+1] === '"') { cur += '"'; j++; }
+      else if (ch === '"') inQ = false;
+      else cur += ch;
+    } else {
+      if (ch === ",") { vals.push(cur); cur = ""; }
+      else if (ch === '"') inQ = true;
+      else cur += ch;
+    }
+  }
+  vals.push(cur);
+  return vals;
+}
+async function loadGridCSV() {
+  try {
+    const res = await fetch(CSV_FILE);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    applyGridCSV(text);
+  } catch (err) {
+    setAssetStatus(`Map image loaded. CSV auto-load failed: ${err.message}. Use “Load grid CSV manually” and select <code>${CSV_FILE}</code>.`);
+  }
+}
+function applyGridCSV(text) {
+  gridRows = parseCSV(text);
+  cellMap = new Map();
+  for (const rec of gridRows) cellMap.set(key(parseInt(rec.row), parseInt(rec.col)), rec);
+  csvLoaded = true;
+  updateEditCount();
+  updateMultiSelectInfo();
+  setAssetStatus(`Loaded image and grid CSV. ${gridRows.length.toLocaleString()} invisible grid cells available.`, true);
+  selectCell(selected?.row || 1, selected?.col || 1, false, true);
+  draw();
+}
+function key(row, col) { return row + "_" + col; }
+function parseKey(k) { const [row, col] = k.split("_").map(Number); return {row, col}; }
+function loadAnnotations() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; } }
+function persistAnnotations() { localStorage.setItem(STORAGE_KEY, JSON.stringify(annotations)); updateEditCount(); }
+function loadTerritories() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TERRITORY_STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function persistTerritories() {
+  localStorage.setItem(TERRITORY_STORAGE_KEY, JSON.stringify(territories));
+  updateTerritoryUI();
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function getCell(row, col) { return cellMap.get(key(row, col)); }
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = stageWrap.getBoundingClientRect();
+  canvas.width = Math.floor(rect.width * dpr);
+  canvas.height = Math.floor(rect.height * dpr);
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function resetView() {
+  const rect = canvas.getBoundingClientRect();
+  scale = Math.min(rect.width / IMG_W, rect.height / IMG_H);
+  offsetX = (rect.width - IMG_W * scale) / 2;
+  offsetY = (rect.height - IMG_H * scale) / 2;
+  draw();
+}
+function screenToImage(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: (clientX - rect.left - offsetX) / scale, y: (clientY - rect.top - offsetY) / scale };
+}
+function cellFromImage(x, y) {
+  if (x < 0 || y < 0 || x >= IMG_W || y >= IMG_H) return null;
+  return { row: Math.floor(y / CELL_SIZE) + 1, col: Math.floor(x / CELL_SIZE) + 1 };
+}
+function cellFromImageClamped(x, y) {
+  const cx = clamp(x, 0, IMG_W - 1);
+  const cy = clamp(y, 0, IMG_H - 1);
+  return { row: Math.floor(cy / CELL_SIZE) + 1, col: Math.floor(cx / CELL_SIZE) + 1 };
+}
+function setBrushMode(mode) {
+  brushMode = mode;
+  selectionTool = "brush";
+  document.getElementById("marqueeMode").classList.remove("active");
+  document.getElementById("marqueeMode").textContent = "Marquee: off";
+  for (const id of ["modeSelect", "modeDeselect"]) document.getElementById(id).classList.remove("active");
+  if (mode === "select") document.getElementById("modeSelect").classList.add("active");
+  if (mode === "deselect") document.getElementById("modeDeselect").classList.add("active");
+  updateMultiSelectInfo();
+}
+function toggleMarqueeMode() {
+  selectionTool = selectionTool === "marquee" ? "brush" : "marquee";
+  document.getElementById("marqueeMode").classList.toggle("active", selectionTool === "marquee");
+  document.getElementById("marqueeMode").textContent = "Marquee: " + (selectionTool === "marquee" ? "on" : "off");
+  updateMultiSelectInfo();
+}
+function applyBrushToCell(cell) {
+  if (!cell) return;
+  const k = key(cell.row, cell.col);
+  if (dragTouched.has(k)) return; // prevents rapid toggle flicker over the same cell during one drag
+  dragTouched.add(k);
+  if (brushMode === "select") selectedCells.add(k);
+  else if (brushMode === "deselect") selectedCells.delete(k);
+  selected = { row: cell.row, col: cell.col };
+  document.getElementById("gotoRow").value = selected.row;
+  document.getElementById("gotoCol").value = selected.col;
+  loadFormForSelected();
+  updateMultiSelectInfo();
+  draw();
+}
+function addRectSelection(mode) {
+  if (!selected || !hoverCell) { flashStatus("Hover over a cell first, then use the rectangular range button."); return; }
+  const r1 = Math.min(selected.row, hoverCell.row), r2 = Math.max(selected.row, hoverCell.row);
+  const c1 = Math.min(selected.col, hoverCell.col), c2 = Math.max(selected.col, hoverCell.col);
+  let n = 0;
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      const k = key(r, c);
+      if (mode === "select") selectedCells.add(k);
+      else selectedCells.delete(k);
+      n++;
+    }
+  }
+  updateMultiSelectInfo();
+  draw();
+  flashStatus((mode === "select" ? "Added " : "Removed ") + n + " cells in rectangular range.");
+}
+function selectMarqueeRange(start, end) {
+  if (!start || !end) return 0;
+  const a = cellFromImageClamped(start.x, start.y);
+  const b = cellFromImageClamped(end.x, end.y);
+  const r1 = Math.min(a.row, b.row), r2 = Math.max(a.row, b.row);
+  const c1 = Math.min(a.col, b.col), c2 = Math.max(a.col, b.col);
+  let n = 0;
+  for (let r = r1; r <= r2; r++) {
+    for (let c = c1; c <= c2; c++) {
+      selectedCells.add(key(r, c));
+      n++;
+    }
+  }
+  selected = { row: r2, col: c2 };
+  document.getElementById("gotoRow").value = selected.row;
+  document.getElementById("gotoCol").value = selected.col;
+  loadFormForSelected();
+  updateMultiSelectInfo();
+  return n;
+}
+function drawMarquee() {
+  if (!marqueeStart || !marqueeCurrent) return;
+  const sx = clamp(marqueeStart.x, 0, IMG_W);
+  const sy = clamp(marqueeStart.y, 0, IMG_H);
+  const ex = clamp(marqueeCurrent.x, 0, IMG_W);
+  const ey = clamp(marqueeCurrent.y, 0, IMG_H);
+  const x = Math.min(sx, ex);
+  const y = Math.min(sy, ey);
+  const w = Math.abs(ex - sx);
+  const h = Math.abs(ey - sy);
+  ctx.fillStyle = "rgba(143,211,255,0.16)";
+  ctx.strokeStyle = "rgba(143,211,255,0.98)";
+  ctx.lineWidth = Math.max(1, 1.5 / scale);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+}
+function drawHighlightCell(cell, fill, stroke, stroke2=null, label=null) {
+  const x = (cell.col - 1) * CELL_SIZE, y = (cell.row - 1) * CELL_SIZE;
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+  ctx.lineWidth = Math.max(1.4, 2.2 / scale);
+  ctx.strokeStyle = stroke;
+  ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+  if (stroke2) {
+    ctx.lineWidth = Math.max(.8, 1.3 / scale);
+    ctx.strokeStyle = stroke2;
+    ctx.strokeRect(x + .25, y + .25, CELL_SIZE - .5, CELL_SIZE - .5);
+  }
+  if (label && showLabels) drawLabel(cell, label);
+}
+function drawLabel(cell, label) {
+  const x = (cell.col - 1) * CELL_SIZE, y = (cell.row - 1) * CELL_SIZE;
+  ctx.save();
+  ctx.font = `${Math.max(16, 18 / scale)}px sans-serif`;
+  const padX = 5 / scale, padY = 4 / scale, tw = ctx.measureText(label).width;
+  const boxW = tw + padX * 2, boxH = 18 / scale + padY * 2;
+  let lx = x + CELL_SIZE + 4 / scale, ly = y - boxH - 4 / scale;
+  if (lx + boxW > IMG_W) lx = x - boxW - 4 / scale;
+  if (ly < 0) ly = y + CELL_SIZE + 4 / scale;
+  ctx.fillStyle = "rgba(15,20,26,0.92)";
+  ctx.strokeStyle = "rgba(255,213,79,0.98)";
+  ctx.lineWidth = Math.max(.8, 1.2 / scale);
+  ctx.fillRect(lx, ly, boxW, boxH); ctx.strokeRect(lx, ly, boxW, boxH);
+  ctx.fillStyle = "#fff"; ctx.fillText(label, lx + padX, ly + boxH - padY - 1 / scale);
+  ctx.restore();
+}
+function draw() {
+  const rect = canvas.getBoundingClientRect();
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  if (!imageLoaded) {
+    ctx.fillStyle = "#eef2f5"; ctx.font = "16px sans-serif";
+    ctx.fillText("Loading map image...", 24, 36);
+    return;
+  }
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  if (showEdited) {
+    ctx.fillStyle = "rgba(255,70,210,0.58)";
+    for (const k of Object.keys(annotations)) {
+      const [r, c] = k.split("_").map(Number);
+      ctx.fillRect((c - 1) * CELL_SIZE, (r - 1) * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    }
+  }
+
+  const activeTerritory = territories.find(t => t.id === activeTerritoryId);
+  if (activeTerritory?.cells?.length) {
+    ctx.fillStyle = "rgba(113,255,177,0.28)";
+    ctx.strokeStyle = "rgba(113,255,177,0.82)";
+    ctx.lineWidth = Math.max(0.6, 1.0 / scale);
+    for (const k of activeTerritory.cells) {
+      const {row, col} = parseKey(k);
+      const x = (col - 1) * CELL_SIZE, y = (row - 1) * CELL_SIZE;
+      ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+      ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+    }
+  }
+
+  // Multi-selected cells.
+  ctx.fillStyle = "rgba(255,213,79,0.32)";
+  ctx.strokeStyle = "rgba(255,213,79,0.75)";
+  ctx.lineWidth = Math.max(0.6, 1.0 / scale);
+  for (const k of selectedCells) {
+    const {row, col} = parseKey(k);
+    const x = (col - 1) * CELL_SIZE, y = (row - 1) * CELL_SIZE;
+    ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+    ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+  }
+
+  if (hoverCell) {
+    drawHighlightCell(hoverCell, "rgba(67,223,255,0.38)", "rgba(67,223,255,0.98)", "rgba(255,255,255,0.75)");
+  }
+
+  if (selected) {
+    drawHighlightCell(selected, "rgba(255,213,79,0.62)", "rgba(255,50,50,0.98)", "rgba(255,255,255,0.95)", `r${selected.row} c${selected.col}`);
+    if (showCrosshair) {
+      const x = (selected.col - 1) * CELL_SIZE, y = (selected.row - 1) * CELL_SIZE;
+      ctx.lineWidth = Math.max(.8, 1.5 / scale);
+      ctx.strokeStyle = "rgba(255,213,79,0.85)";
+      ctx.beginPath(); ctx.moveTo(x + CELL_SIZE/2, 0); ctx.lineTo(x + CELL_SIZE/2, IMG_H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y + CELL_SIZE/2); ctx.lineTo(IMG_W, y + CELL_SIZE/2); ctx.stroke();
+    }
+  }
+  drawMarquee();
+  ctx.restore();
+}
+function selectCell(row, col, center=true, addToSelection=true) {
+  selected = { row: clamp(row || 1, 1, NROWS), col: clamp(col || 1, 1, NCOLS) };
+  if (addToSelection) selectedCells.add(key(selected.row, selected.col));
+  document.getElementById("gotoRow").value = selected.row;
+  document.getElementById("gotoCol").value = selected.col;
+  if (center || document.getElementById("autoZoomSelect").checked) {
+    if (scale < 2.8) scale = 2.8;
+    centerOnCell(selected.row, selected.col);
+  }
+  loadFormForSelected();
+  updateMultiSelectInfo();
+  draw();
+}
+function centerOnCell(row, col) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = (col - .5) * CELL_SIZE, cy = (row - .5) * CELL_SIZE;
+  offsetX = rect.width / 2 - cx * scale;
+  offsetY = rect.height / 2 - cy * scale;
+}
+function setTextKV(containerId, pairs) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  for (const [k, v] of pairs) {
+    const a = document.createElement("div"); a.textContent = k;
+    const b = document.createElement("div"); b.innerHTML = v;
+    el.appendChild(a); el.appendChild(b);
+  }
+}
+function updateMultiSelectInfo() {
+  setTextKV("multiSelectInfo", [
+    ["selected cells", `<span class="pill">${selectedCells.size.toLocaleString()}</span>`],
+    ["drag tool", `<span class="pill">${selectionTool}</span>`],
+    ["brush mode", `<span class="pill">${brushMode}</span>`],
+    ["drag behavior", selectionTool === "marquee" ? "adds rectangle" : brushMode === "select" ? "adds cells" : "removes cells"],
+    ["active cell included", selected ? (selectedCells.has(key(selected.row, selected.col)) ? "yes" : "no") : "none"]
+  ]);
+  updateTerritoryUI();
+}
+function htmlEscape(v) {
+  return (v ?? "").toString().replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+}
+function uniqueId(prefix) {
+  return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+function getTerritoryArea(cells) {
+  return getTerritoryAreaDetails(cells).area;
+}
+function computedAreaForRow(row) {
+  const theta = Math.PI / 2 - (row - 0.5) * LAT_STEP_RADIANS;
+  const lengthMiles = (2 * Math.PI * PLANET_RADIUS_MILES * Math.cos(theta)) / NCOLS;
+  return Math.max(0, lengthMiles * CELL_HEIGHT_MILES);
+}
+function getCellAreaSqMiles(rec, row) {
+  if (!rec) return computedAreaForRow(row);
+  const direct = parseFloat(rec.area_sq_miles ?? rec.area_square_miles ?? rec.area ?? "");
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const length = parseFloat(rec.length_miles ?? rec.length ?? "");
+  const height = parseFloat(rec.height_miles ?? rec.height ?? "");
+  if (Number.isFinite(length) && Number.isFinite(height) && length > 0 && height > 0) return length * height;
+  return computedAreaForRow(row);
+}
+function getTerritoryAreaDetails(cells) {
+  return (cells || []).reduce((stats, id) => {
+    const {row, col} = parseKey(id);
+    const rec = getCell(row, col);
+    const area = getCellAreaSqMiles(rec, row);
+    stats.area += area;
+    if (area > 0) stats.measuredCells++;
+    else stats.missingCells++;
+    return stats;
+  }, { area:0, measuredCells:0, missingCells:0 });
+}
+function formatArea(area) {
+  return area.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+function getTerritoryLabel(t) {
+  const level = t.level ? `${t.level}: ` : "";
+  return level + (t.name || t.id);
+}
+function getTerritoryPath(t) {
+  const parts = [];
+  let cur = t;
+  const seen = new Set();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    parts.unshift(getTerritoryLabel(cur));
+    cur = territories.find(item => item.id === cur.parent_id);
+  }
+  return parts.join(" > ");
+}
+function recalcTerritory(t) {
+  t.cells = Array.from(new Set(t.cells || []));
+  t.cell_count = t.cells.length;
+  const areaStats = getTerritoryAreaDetails(t.cells);
+  t.area_sq_miles = areaStats.area;
+  t.area_measured_cells = areaStats.measuredCells;
+  t.area_missing_cells = areaStats.missingCells;
+  return t;
+}
+function updateTerritoryUI() {
+  const active = territories.find(t => t.id === activeTerritoryId);
+  const territorySelect = document.getElementById("territorySelect");
+  const parentSelect = document.getElementById("territoryParent");
+  territorySelect.innerHTML = '<option value="">No active territory</option>';
+  parentSelect.innerHTML = '<option value="">No parent / top level</option>';
+  for (const t of territories) {
+    recalcTerritory(t);
+    const opt = document.createElement("option");
+    opt.value = t.id; opt.textContent = getTerritoryPath(t);
+    territorySelect.appendChild(opt);
+    if (t.id !== activeTerritoryId) {
+      const parentOpt = document.createElement("option");
+      parentOpt.value = t.id; parentOpt.textContent = getTerritoryPath(t);
+      parentSelect.appendChild(parentOpt);
+    }
+  }
+  territorySelect.value = activeTerritoryId;
+  if (active) {
+    document.getElementById("territoryName").value = active.name || "";
+    document.getElementById("territoryLevel").value = active.level || "";
+    document.getElementById("territoryParent").value = active.parent_id || "";
+    document.getElementById("territoryNotes").value = active.notes || "";
+  }
+  const selectedAreaStats = getTerritoryAreaDetails(Array.from(selectedCells));
+  setTextKV("territoryInfo", [
+    ["territories", `<span class="pill">${territories.length.toLocaleString()}</span>`],
+    ["active area", active ? `${formatArea(active.area_sq_miles || 0)} sq mi` : "none"],
+    ["active cells", active ? active.cell_count.toLocaleString() : "0"],
+    ["selected area", `${formatArea(selectedAreaStats.area)} sq mi`],
+    ["area data found", `${selectedAreaStats.measuredCells.toLocaleString()} of ${selectedCells.size.toLocaleString()} selected cells`]
+  ]);
+  renderTerritoryList();
+}
+function renderTerritoryList() {
+  const el = document.getElementById("territoryList");
+  el.innerHTML = "";
+  if (!territories.length) {
+    el.innerHTML = '<div class="territoryItem"><div>No territories yet.</div><div class="territoryMeta">Select cells, name a territory, then create it.</div></div>';
+    return;
+  }
+  for (const t of territories) {
+    const item = document.createElement("div");
+    item.className = "territoryItem" + (t.id === activeTerritoryId ? " active" : "");
+    item.innerHTML = `<div>${htmlEscape(getTerritoryLabel(t))}</div><div class="territoryMeta">${htmlEscape(getTerritoryPath(t))} · ${t.cell_count.toLocaleString()} cells · ${formatArea(t.area_sq_miles || 0)} sq mi</div>`;
+    item.onclick = () => setActiveTerritory(t.id);
+    el.appendChild(item);
+  }
+}
+function setActiveTerritory(id) {
+  activeTerritoryId = id || "";
+  updateTerritoryUI();
+  draw();
+}
+function readTerritoryForm() {
+  return {
+    name: document.getElementById("territoryName").value.trim(),
+    level: document.getElementById("territoryLevel").value.trim(),
+    parent_id: document.getElementById("territoryParent").value,
+    notes: document.getElementById("territoryNotes").value.trim()
+  };
+}
+function createTerritoryFromSelection() {
+  if (!selectedCells.size) { flashStatus("No cells selected for territory."); return; }
+  const form = readTerritoryForm();
+  if (!form.name) { flashStatus("Territory needs a name."); return; }
+  const now = new Date().toISOString();
+  const territory = recalcTerritory({
+    id: uniqueId("territory"),
+    ...form,
+    cells: Array.from(selectedCells),
+    created_at: now,
+    updated_at: now
+  });
+  territories.push(territory);
+  activeTerritoryId = territory.id;
+  persistTerritories();
+  draw();
+  flashStatus(`Created territory: ${territory.name}`);
+}
+function updateActiveTerritory() {
+  const territory = territories.find(t => t.id === activeTerritoryId);
+  if (!territory) { flashStatus("No active territory."); return; }
+  const form = readTerritoryForm();
+  if (!form.name) { flashStatus("Territory needs a name."); return; }
+  Object.assign(territory, form, {
+    cells: selectedCells.size ? Array.from(selectedCells) : territory.cells,
+    updated_at: new Date().toISOString()
+  });
+  recalcTerritory(territory);
+  persistTerritories();
+  draw();
+  flashStatus(`Updated territory: ${territory.name}`);
+}
+function selectActiveTerritoryCells() {
+  const territory = territories.find(t => t.id === activeTerritoryId);
+  if (!territory) { flashStatus("No active territory."); return; }
+  selectedCells = new Set(territory.cells || []);
+  const first = territory.cells?.[0];
+  if (first) selected = parseKey(first);
+  loadFormForSelected();
+  updateMultiSelectInfo();
+  updateTerritoryUI();
+  draw();
+  flashStatus(`Selected ${selectedCells.size.toLocaleString()} territory cells.`);
+}
+function deleteActiveTerritory() {
+  const territory = territories.find(t => t.id === activeTerritoryId);
+  if (!territory) { flashStatus("No active territory."); return; }
+  if (!confirm(`Delete territory "${territory.name}"? Child territories will become top-level.`)) return;
+  territories = territories.filter(t => t.id !== activeTerritoryId).map(t => t.parent_id === activeTerritoryId ? {...t, parent_id:""} : t);
+  activeTerritoryId = "";
+  persistTerritories();
+  draw();
+  flashStatus("Territory deleted.");
+}
+function exportTerritoriesCSV() {
+  const headers = ["territory_id","name","level","parent_id","parent_path","cell_count","area_sq_miles","notes","created_at","updated_at","cells"];
+  const lines = [headers.join(",")];
+  for (const t of territories.map(recalcTerritory)) {
+    const parent = territories.find(item => item.id === t.parent_id);
+    const vals = [t.id, t.name || "", t.level || "", t.parent_id || "", parent ? getTerritoryPath(parent) : "", t.cell_count || 0, (t.area_sq_miles || 0).toFixed(6), t.notes || "", t.created_at || "", t.updated_at || "", (t.cells || []).join(" ")];
+    lines.push(vals.map(csvEscape).join(","));
+  }
+  downloadText("realistic_map_territories.csv", lines.join("\n"), "text/csv");
+}
+const annotationFields = ["terrain_class","fertility_rating","water_access","habitability","ore_type","ore_grade","deposit_size","owner_region","notes","custom_json"];
+function loadFormForSelected() {
+  if (!selected) return;
+  const rec = getCell(selected.row, selected.col) || {};
+  const id = key(selected.row, selected.col);
+  const ann = annotations[id] || {};
+  setTextKV("selectedInfo", [
+    ["cell_id", `<span class="pill">${id}</span>`], ["row", selected.row], ["col", selected.col],
+    ["x pixels", rec.x_min_px ? `${rec.x_min_px}–${rec.x_max_px}` : "CSV not loaded"],
+    ["y pixels", rec.y_min_px ? `${rec.y_min_px}–${rec.y_max_px}` : "CSV not loaded"],
+    ["annotation", annotations[id] ? `<span class="pill">saved</span>` : `<span class="pill">empty</span>`]
+  ]);
+  setTextKV("climateInfo", [
+    ["dominant class", rec.dominant_class || "CSV not loaded"], ["dominant band", rec.dominant_band || ""],
+    ["dominant level", rec.dominant_level_1_to_10 || "0"], ["dominant extremity", rec.dominant_extremity_0_100 || ""],
+    ["rainfall", rec.rainfall_coverage_pct ? `${rec.rainfall_coverage_pct}% coverage · level ${rec.rainfall_level_1_to_10} · extremity ${rec.rainfall_extremity_0_100}` : ""],
+    ["aridity", rec.aridity_coverage_pct ? `${rec.aridity_coverage_pct}% coverage · level ${rec.aridity_level_1_to_10} · extremity ${rec.aridity_extremity_0_100}` : ""],
+    ["snowfall", rec.snowfall_coverage_pct ? `${rec.snowfall_coverage_pct}% coverage · level ${rec.snowfall_level_1_to_10} · extremity ${rec.snowfall_extremity_0_100}` : ""]
+  ]);
+  for (const f of annotationFields) document.getElementById(f).value = ann[f] || "";
+}
+function readForm() {
+  const obj = {};
+  for (const f of annotationFields) obj[f] = document.getElementById(f).value.trim();
+  obj.updated_at = new Date().toISOString();
+  return obj;
+}
+function saveCurrentCell() {
+  if (!selected) return;
+  const obj = readForm(), id = key(selected.row, selected.col);
+  const hasData = annotationFields.some(f => obj[f] !== "");
+  if (!hasData) delete annotations[id]; else annotations[id] = obj;
+  persistAnnotations(); loadFormForSelected(); draw(); flashStatus("Saved " + id);
+}
+function saveSelectedCells() {
+  if (!selectedCells.size) { flashStatus("No cells selected."); return; }
+  const obj = readForm();
+  const hasData = annotationFields.some(f => obj[f] !== "");
+  if (!hasData) { flashStatus("Form is empty; nothing applied."); return; }
+  for (const id of selectedCells) annotations[id] = {...obj, updated_at: new Date().toISOString()};
+  persistAnnotations(); loadFormForSelected(); draw();
+  flashStatus("Applied form to " + selectedCells.size.toLocaleString() + " selected cells.");
+}
+function clearCurrentCell() {
+  if (!selected) return;
+  delete annotations[key(selected.row, selected.col)];
+  persistAnnotations(); loadFormForSelected(); draw(); flashStatus("Cleared active cell");
+}
+function clearSelectedCells() {
+  if (!selectedCells.size) { flashStatus("No cells selected."); return; }
+  if (!confirm("Clear annotations for all selected cells?")) return;
+  for (const id of selectedCells) delete annotations[id];
+  persistAnnotations(); loadFormForSelected(); draw();
+  flashStatus("Cleared annotations for selected cells.");
+}
+function flashStatus(text) {
+  const el = document.getElementById("status");
+  el.textContent = text;
+  setTimeout(() => { if (el.textContent === text) el.textContent = ""; }, 2200);
+}
+function updateEditCount() {
+  document.getElementById("editCount").textContent = `${Object.keys(annotations).length} edited cells stored in this browser.`;
+}
+function csvEscape(v) {
+  v = (v ?? "").toString();
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function downloadText(filename, text, mime="text/plain") {
+  const blob = new Blob([text], { type:mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function exportAnnotationsCSV() {
+  const headers = ["cell_id","row","col",...annotationFields,"updated_at"];
+  const lines = [headers.join(",")];
+  for (const [id, ann] of Object.entries(annotations)) {
+    const [row, col] = id.split("_");
+    const vals = [id, row, col, ...annotationFields.map(f => ann[f] || ""), ann.updated_at || ""];
+    lines.push(vals.map(csvEscape).join(","));
+  }
+  downloadText("realistic_map_annotations.csv", lines.join("\n"), "text/csv");
+}
+function exportMergedCSV() {
+  if (!gridRows.length) { alert("Grid CSV is not loaded."); return; }
+  const gridHeaders = Object.keys(gridRows[0]);
+  const headers = [...gridHeaders, "cell_id", ...annotationFields, "updated_at"];
+  const lines = [headers.join(",")];
+  for (const rec of gridRows) {
+    const id = key(parseInt(rec.row), parseInt(rec.col));
+    const ann = annotations[id] || {};
+    const vals = [...gridHeaders.map(h => rec[h] ?? ""), id, ...annotationFields.map(f => ann[f] || ""), ann.updated_at || ""];
+    lines.push(vals.map(csvEscape).join(","));
+  }
+  downloadText("realistic_map_full_grid_with_annotations.csv", lines.join("\n"), "text/csv");
+}
+
+canvas.addEventListener("mousedown", e => {
+  dragging = true;
+  lastMouse = {x:e.clientX, y:e.clientY};
+  if (!e.shiftKey && e.button === 0) {
+    const p = screenToImage(e.clientX, e.clientY);
+    if (selectionTool === "marquee") {
+      selectingDrag = false;
+      marqueeStart = p;
+      marqueeCurrent = p;
+      suppressNextClick = true;
+      draw();
+    } else {
+      selectingDrag = true;
+      dragTouched = new Set();
+      const c = cellFromImage(p.x, p.y);
+      if (c) applyBrushToCell(c);
+    }
+  }
+});
+window.addEventListener("mouseup", e => {
+  if (marqueeStart && marqueeCurrent) {
+    marqueeCurrent = screenToImage(e.clientX, e.clientY);
+    const n = selectMarqueeRange(marqueeStart, marqueeCurrent);
+    marqueeStart = null;
+    marqueeCurrent = null;
+    updateMultiSelectInfo();
+    draw();
+    if (n) flashStatus(`Marquee selected ${n.toLocaleString()} cells.`);
+  }
+  dragging = false;
+  selectingDrag = false;
+  lastMouse = null;
+  dragTouched = new Set();
+});
+canvas.addEventListener("mousemove", e => {
+  const p = screenToImage(e.clientX, e.clientY);
+  hoverCell = cellFromImage(p.x, p.y);
+
+  if (dragging && lastMouse && e.buttons === 1 && e.shiftKey) {
+    offsetX += e.clientX - lastMouse.x; offsetY += e.clientY - lastMouse.y;
+    lastMouse = {x:e.clientX, y:e.clientY};
+    draw();
+    return;
+  }
+
+  if (marqueeStart && e.buttons === 1) {
+    marqueeCurrent = p;
+    draw();
+    return;
+  }
+
+  if (selectingDrag && e.buttons === 1 && hoverCell) {
+    applyBrushToCell(hoverCell);
+  } else {
+    draw();
+  }
+});
+canvas.addEventListener("mouseleave", () => { hoverCell = null; draw(); });
+canvas.addEventListener("click", e => {
+  if (suppressNextClick) { suppressNextClick = false; return; }
+  if (e.shiftKey) return;
+  const p = screenToImage(e.clientX, e.clientY);
+  const c = cellFromImage(p.x, p.y);
+  if (c) {
+    selected = { row: c.row, col: c.col };
+    document.getElementById("gotoRow").value = selected.row;
+    document.getElementById("gotoCol").value = selected.col;
+    loadFormForSelected();
+    updateMultiSelectInfo();
+    draw();
+  }
+});
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const imgX = (mx - offsetX) / scale, imgY = (my - offsetY) / scale;
+  scale = clamp(scale * (e.deltaY < 0 ? 1.12 : .89), .12, 30);
+  offsetX = mx - imgX * scale; offsetY = my - imgY * scale;
+  draw();
+}, { passive:false });
+
+window.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveCurrentCell(); return; }
+  if (e.key.toLowerCase() === "v") { setBrushMode("select"); return; }
+  if (e.key.toLowerCase() === "x") { setBrushMode("deselect"); return; }
+  if (e.key.toLowerCase() === "m") { toggleMarqueeMode(); return; }
+  if (!selected) return;
+  if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault();
+  if (e.key === "ArrowUp") selectCell(selected.row - 1, selected.col, false, false);
+  if (e.key === "ArrowDown") selectCell(selected.row + 1, selected.col, false, false);
+  if (e.key === "ArrowLeft") selectCell(selected.row, selected.col - 1, false, false);
+  if (e.key === "ArrowRight") selectCell(selected.row, selected.col + 1, false, false);
+});
+
+document.getElementById("zoomIn").onclick = () => { scale = clamp(scale * 1.2, .12, 30); draw(); };
+document.getElementById("zoomOut").onclick = () => { scale = clamp(scale / 1.2, .12, 30); draw(); };
+document.getElementById("resetView").onclick = resetView;
+document.getElementById("zoomSelected").onclick = () => { if (selected) centerOnCell(selected.row, selected.col); draw(); };
+document.getElementById("modeSelect").onclick = () => setBrushMode("select");
+document.getElementById("modeDeselect").onclick = () => setBrushMode("deselect");
+document.getElementById("marqueeMode").onclick = toggleMarqueeMode;
+document.getElementById("clearSelection").onclick = () => { selectedCells.clear(); updateMultiSelectInfo(); draw(); };
+document.getElementById("toggleEdited").onclick = e => { showEdited = !showEdited; e.target.textContent = "Edited cells: " + (showEdited ? "on" : "off"); draw(); };
+document.getElementById("toggleLabels").onclick = e => { showLabels = !showLabels; e.target.textContent = "Selection label: " + (showLabels ? "on" : "off"); draw(); };
+document.getElementById("toggleCrosshair").onclick = e => { showCrosshair = !showCrosshair; e.target.textContent = "Crosshair: " + (showCrosshair ? "on" : "off"); draw(); };
+document.getElementById("gotoBtn").onclick = () => selectCell(parseInt(document.getElementById("gotoRow").value), parseInt(document.getElementById("gotoCol").value), true, true);
+document.getElementById("selectRect").onclick = () => addRectSelection("select");
+document.getElementById("deselectRect").onclick = () => addRectSelection("deselect");
+document.getElementById("territorySelect").onchange = e => setActiveTerritory(e.target.value);
+document.getElementById("createTerritory").onclick = createTerritoryFromSelection;
+document.getElementById("updateTerritory").onclick = updateActiveTerritory;
+document.getElementById("selectTerritoryCells").onclick = selectActiveTerritoryCells;
+document.getElementById("deleteTerritory").onclick = deleteActiveTerritory;
+document.getElementById("exportTerritoriesJSON").onclick = () => downloadText("realistic_map_territories.json", JSON.stringify(territories.map(recalcTerritory), null, 2), "application/json");
+document.getElementById("exportTerritoriesCSV").onclick = exportTerritoriesCSV;
+document.getElementById("saveCell").onclick = saveCurrentCell;
+document.getElementById("saveSelectedCells").onclick = saveSelectedCells;
+document.getElementById("clearCell").onclick = clearCurrentCell;
+document.getElementById("clearSelectedCells").onclick = clearSelectedCells;
+document.getElementById("exportJSON").onclick = () => downloadText("realistic_map_annotations.json", JSON.stringify(annotations, null, 2), "application/json");
+document.getElementById("exportCSV").onclick = exportAnnotationsCSV;
+document.getElementById("exportMerged").onclick = exportMergedCSV;
+document.getElementById("importJSON").onclick = () => document.getElementById("hiddenFileInput").click();
+document.getElementById("hiddenFileInput").onchange = e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { annotations = JSON.parse(reader.result); persistAnnotations(); loadFormForSelected(); draw(); flashStatus("Imported annotations JSON"); }
+    catch (err) { alert("Could not parse JSON: " + err.message); }
+  };
+  reader.readAsText(file);
+};
+document.getElementById("clearAll").onclick = () => {
+  if (confirm("Delete all stored annotations for this map in this browser?")) {
+    annotations = {}; persistAnnotations(); loadFormForSelected(); draw(); flashStatus("All annotations cleared");
+  }
+};
+document.getElementById("manualCsv").onclick = () => document.getElementById("hiddenCsvInput").click();
+document.getElementById("hiddenCsvInput").onchange = e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => applyGridCSV(reader.result);
+  reader.readAsText(file);
+};
+
+img.onload = () => { imageLoaded = true; resizeCanvas(); resetView(); loadGridCSV(); draw(); updateMultiSelectInfo(); };
+img.onerror = () => setAssetStatus(`Could not load <code>${IMAGE_FILE}</code>. Keep the HTML, PNG, and CSV in the same folder.`);
+window.addEventListener("resize", resizeCanvas);
+updateEditCount();
+updateMultiSelectInfo();
+updateTerritoryUI();
+</script>
+</body>
+</html>
